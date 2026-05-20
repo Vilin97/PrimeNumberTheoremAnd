@@ -1026,9 +1026,55 @@ lemma liouville_eq_moebius_on_squarefree (n : ℕ) (hn : Squarefree n) : liouvil
 L(\varphi, s) = \prod_{p} \left(1 + \varphi(p)p^{-s} + \varphi(p^2)p^{-2s} + \ldots\right) = \prod_{p} \left(1 - p^{-s  +1}\right)^{-1} \left(1 - p^{-s}\right) = \frac{\zeta(s-1)}{\zeta(s)}.
 \]
   -/)]
-lemma LSeries_totient_eq {s : ℂ} (hs : 1 < s.re) :
+-- The convergence hypothesis is `2 < s.re`: the Dirichlet series `∑ φ(n) n⁻ˢ` has
+-- abscissa of absolute convergence `2` (since `φ(n) ≍ n`), matching IK (1.35).
+lemma LSeries_totient_eq {s : ℂ} (hs : 2 < s.re) :
     LSeries (↗totient) s = riemannZeta (s - 1) / riemannZeta s := by
-  sorry
+  have hs1 : 1 < (s - 1).re := by rw [Complex.sub_re, Complex.one_re]; linarith
+  -- the Dirichlet convolution `φ ⍟ ζ` is the identity function `n ↦ n`
+  have hconv_id : (↗totient ⍟ ↗ζ) = fun n : ℕ => (n : ℂ) := by
+    funext n
+    rcases eq_or_ne n 0 with rfl | hn
+    · simp
+    · rw [LSeries.convolution_def]
+      change ∑ p ∈ n.divisorsAntidiagonal, (↗totient) p.1 * (↗ζ) p.2 = (n : ℂ)
+      have hcast : ∑ p ∈ n.divisorsAntidiagonal, (↗totient) p.1 * (↗ζ) p.2
+          = ((∑ p ∈ n.divisorsAntidiagonal, totient p.1 : ℕ) : ℂ) := by
+        rw [Nat.cast_sum]
+        refine Finset.sum_congr rfl (fun p hp => ?_)
+        have hp2 : p.2 ≠ 0 := Nat.right_ne_zero_of_mem_divisorsAntidiagonal hp
+        change (totient p.1 : ℂ) * ((ζ p.2 : ℕ) : ℂ) = ((totient p.1 : ℕ) : ℂ)
+        rw [ArithmeticFunction.zeta_apply_ne hp2, Nat.cast_one, mul_one]
+      rw [hcast]
+      norm_cast
+      rw [← Nat.map_div_right_divisors, Finset.sum_map]
+      exact Nat.sum_totient n
+  -- the L-series of the identity function is `ζ(s-1)`
+  have hLid : LSeries (fun n : ℕ => (n : ℂ)) s = riemannZeta (s - 1) := by
+    have hterm : LSeries.term (fun n : ℕ => (n : ℂ)) s = LSeries.term 1 (s - 1) := by
+      funext n
+      rcases eq_or_ne n 0 with rfl | hn
+      · simp [LSeries.term]
+      · have hn' : (n : ℂ) ≠ 0 := Nat.cast_ne_zero.mpr hn
+        rw [LSeries.term_of_ne_zero hn, LSeries.term_of_ne_zero hn, Pi.one_apply,
+          Complex.cpow_sub _ _ hn', Complex.cpow_one, one_div_div]
+    rw [← LSeries_one_eq_riemannZeta hs1]
+    change ∑' n, LSeries.term (fun n : ℕ => (n : ℂ)) s n = ∑' n, LSeries.term 1 (s - 1) n
+    rw [hterm]
+  -- summability of both factors
+  have hsumT : LSeriesSummable (↗totient) s := by
+    refine LSeriesSummable_of_le_const_mul_rpow (x := 2) hs ⟨1, fun n _ => ?_⟩
+    rw [one_mul]
+    show ‖((totient n : ℕ) : ℂ)‖ ≤ (n : ℝ) ^ ((2 : ℝ) - 1)
+    rw [Complex.norm_natCast, show (2 : ℝ) - 1 = 1 by norm_num, Real.rpow_one]
+    exact_mod_cast Nat.totient_le n
+  have hsumZ : LSeriesSummable (↗ζ) s := LSeriesSummable_zeta_iff.mpr (by linarith)
+  -- combine: `L(φ) · ζ(s) = L(φ ⍟ ζ) = L(id) = ζ(s-1)`
+  have hprod : LSeries (↗totient) s * LSeries (↗ζ) s = riemannZeta (s - 1) := by
+    rw [← LSeries_convolution' hsumT hsumZ, hconv_id, hLid]
+  rw [LSeries_zeta_eq_riemannZeta (by linarith : (1 : ℝ) < s.re)] at hprod
+  rw [eq_div_iff (riemannZeta_ne_zero_of_one_lt_re (by linarith : (1 : ℝ) < s.re))]
+  exact hprod
 
 
 end ArithmeticFunction
